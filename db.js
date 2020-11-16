@@ -1,4 +1,5 @@
-﻿const mongoose = require('mongoose'),
+﻿//new
+const mongoose = require('mongoose'),
   db = mongoose.createConnection('mongodb://localhost/test', {useNewUrlParser: true, useUnifiedTopology: true}),
   sk_schema = new mongoose.Schema({
 	bc_http: String,
