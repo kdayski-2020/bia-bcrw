@@ -1,0 +1,182 @@
+swagger: "2.0"
+info:
+  description: "BC: Read Write service API"
+  version: "1.0.0"
+  title: "BC: Read Write"
+  termsOfService: "http://swagger.io/terms/"
+  contact:
+    email: "apiteam@swagger.io"
+  license:
+    name: "Apache 2.0"
+    url: "http://www.apache.org/licenses/LICENSE-2.0.html"
+host: "localhost:8866"
+basePath: "/"
+tags:
+- name: "bc"
+  description: "Everything about Blockchain Read Write"
+  externalDocs:
+    description: "Find out more"
+    url: "http://swagger.io"
+- name: "sv"
+  description: "Manage Services"
+schemes:
+# - "https"
+- "http"
+
+paths:
+  /call:
+    post:
+      tags:
+      - "bc"
+      summary: "Call func from Smart contract"
+      description: ""
+      operationId: "createBC"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+        - in: body
+          name: body
+          description: Call method from smart contract.
+          schema:
+            type: object
+            required:
+              - method
+            properties:
+              method:
+                type: string
+                example: "retrieve"
+      responses:
+        "200":
+          description: "successful operation"    
+        "400":
+          description: "Invalid ID"
+        "404":
+          description: "not found"        
+      security:
+      - bia_auth:
+        - "write:bc"
+        - "read:bc"
+  /send:
+    post:
+      tags:
+      - "bc"
+      summary: "Send data to Smart contract"
+      description: ""
+      operationId: "createBC"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+        - in: body
+          name: body
+          description: Send some data to smart contract
+          schema:
+            type: object
+            required:
+              - method
+            properties:
+              method:
+                type: string
+                example: "store"
+              params:
+                type: string
+                example: "1"
+      responses:       
+        "400":
+          description: "Invalid ID"
+        "404":
+          description: "not found"        
+      security:
+      - bia_auth:
+        - "write:bc"
+        - "read:bc"
+  /deploy:
+    post:
+      tags:
+      - "bc"
+      summary: "Deploy Smart contract"
+      description: ""
+      operationId: "createBC"
+      consumes:
+      - "application/json"
+      produces:
+      - "application/json"
+      parameters:
+      - in: "body"
+        name: "body"
+        description: "Store data methods"
+        required: true
+        schema:
+          $ref: "#/definitions/SCS"
+      responses:       
+        "400":
+          description: "Invalid ID"
+        "404":
+          description: "not found"        
+      security:
+      - bia_auth:
+        - "write:bc"
+        - "read:bc"
+securityDefinitions:
+  bia_auth:
+    type: "oauth2"
+    authorizationUrl: "http://petstore.swagger.io/oauth/dialog"
+    flow: "implicit"
+    scopes:
+      write:pets: "modify bc in your account"
+      read:pets: "read your bc"
+  api_key:
+    type: "apiKey"
+    name: "api_key"
+    in: "header"
+definitions:
+  SCS:
+    type: "object"
+    required:
+    - "method"
+    properties:
+      method:
+        type: "string"        
+        example: "store"
+      params:
+        type: "array"
+        xml:
+          name: "args"
+          wrapped: true
+        items:
+          type: "int"     
+  SCC:
+    type: "object"
+    required:
+    - "method"
+    properties:
+      method:
+        type: "string"        
+        example: "retrive"
+  Blockchain:
+    type: "object"
+    properties:
+      id:
+        type: "integer"
+        format: "int64"
+      bid:
+        type: "integer"
+        format: "int64"
+      address:
+        type: "integer"
+        format: "int32"
+      status:
+        type: "string"
+        description: "Order Status"
+        enum:
+        - "placed"
+        - "approved"
+        - "delivered"
+    xml:
+      name: "Blockchain"  
+externalDocs:
+  description: "About Blockchain Industrial Alliance"
+  url: "https://bialliance.io"
