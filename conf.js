@@ -1,7 +1,10 @@
 module.exports = {
-    acc_adr: '0x7385b01319993Ea700599086063D0bCf39720D51',
-    acc_pass: '1',
-    rpc: 'http://localhost:8545',
-    contract_name: 'storage',
-    contract_address: '0xc74CdCb958E33C0eE7Efbf3Eff875c4c430709EB'
-}
+  rpc: "http://localhost:8545",
+  contract_name: "storage",
+  service_port: "8866",
+  mongo_host: "http://mongo",
+  mongo_url: "mongodb://mongo:27017/bia_bcrw",
+  app_privateKey:
+    "0x294ed50ba426d62be28e577c795821c66c19b50df67ba3a2289bc1ab29c09fc6",
+  app_address: "0x28a4591adfc5E6701aa5A66da63f1d09E4d70a51",
+};

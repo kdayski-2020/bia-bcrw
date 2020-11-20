@@ -1,24 +1,24 @@
 {
-    "swaggerUi":{
-        "explorer": true
-    },
-    "swagerOptions":{
-        "swaggerDefinition":{
-            "info": {
-                "title": "BC: Read Write",
-                "description": "text",
-                "contact":{
-                    "name":"Fanil"
-                },
-                "servers":["http://localhost:8866"]
-            },
-            "basePath":"/home/unknown/bc_rw/"
+  "swaggerUi": {
+    "explorer": true
+  },
+  "swagerOptions": {
+    "swaggerDefinition": {
+      "info": {
+        "title": "BC: Read Write",
+        "description": "text",
+        "contact": {
+          "name": "Fanil"
         },
-        "apis": ["index.js"]
+        "servers": ["http://dev.bialliance.io:8866"]
+      },
+      "basePath": "/home/unknown/bc_rw/"
     },
-    "swaggerBia":{
-        "apiDocsPath": "api-docs/",
-        "startYaml": "swagger-bia.yaml",
-        "combineYaml": "swagger-bia-combine.yaml"
-    }
+    "apis": ["index.js"]
+  },
+  "swaggerBia": {
+    "apiDocsPath": "api-docs/",
+    "startYaml": "swagger-bia.yaml",
+    "combineYaml": "swagger-bia-combine.yaml"
+  }
 }

@@ -1,132 +1,234 @@
-const fs = require('fs')
-const express = require('express')
-const axios = require('axios')
+const fs = require("fs");
+const express = require("express");
+const axios = require("axios");
+const Web3 = require("web3");
+const conf = require("./conf");
+const { constants } = require("buffer");
+const { connectDb } = require("./helper/db");
+const mongoose = require("mongoose");
+const { callbackify } = require("util");
 
-const Web3 = require('web3')
-
-const conf = require('./conf')
+const port = conf.service_port;
+const host = conf.mongo_host;
+const db = conf.mongo_url;
+const sk_schema = new mongoose.Schema({
+  bcId: String,
+  contractAddress: String,
+});
+const sk_model = mongoose.model("SmartContract", sk_schema);
 
 var app = new express();
 
-app = require('./lib/swagger-bia')(app, {type:'json'});
+app = require("./lib/swagger-bia")(app, { type: "json" });
 
-app.use(express.json())
+app.use(express.json());
 
-var web3 = new Web3(new Web3.providers.HttpProvider(conf.rpc));
+var web3;
 
-async function unlock(){
-    return await web3.eth.personal.unlockAccount(conf.acc_adr, conf.acc_pass, 10000)
+function transferMoney(eth) {
+  eth = String(eth);
+  console.log("transfer money");
+  web3.eth.getBalance(conf.app_address, (e, d) => {
+    console.log(web3.utils.fromWei(d, "ether"));
+  });
+  web3.eth.getAccounts((er, data) => {
+    console.log(data);
+    web3.eth
+      .sendTransaction({
+        from: data[0],
+        to: conf.app_address,
+        value: web3.utils.toWei(eth, "ether"),
+      })
+      .then(function (receipt) {
+        web3.eth.getBalance(conf.app_address, (e, d) => {
+          console.log(web3.utils.fromWei(d, "ether"));
+        });
+      });
+  });
+}
+
+function checkBalance() {
+  web3.eth.getBalance(conf.app_address, (e, d) => {
+    if (web3.utils.fromWei(d, "ether") < 1) {
+      transferMoney(10);
+    }
+  });
+}
+
+async function initApp(bcId, callback, err_callback = () => {}) {
+  web3 = new Web3(
+    new Web3.providers.HttpProvider(
+      "http://83.220.168.72:8001/bcm/bc/" + bcId + "/rpc"
+    )
+  );
+  /*
+    1. Перевести деньги с мастер кошелька на свой
+    2. Отправить деньги со своего кошелька на мастер кошелек
+    https://stackoverflow.com/questions/57393050/no-truffle-error-number-can-only-safely-store-up-to-53-bits
+    3. 
+    */
+  web3.eth.getAccounts((er, data) => {
+    console.log(er);
+    console.log(data);
+    if (er) {
+      err_callback(String(er));
+    } else {
+      conf.acc_adr = data[0];
+      callback(bcId);
+    }
+  });
+}
+
+async function unlock() {
+  return await web3.eth.personal.unlockAccount(
+    conf.acc_adr,
+    conf.acc_pass,
+    10000
+  );
 }
 
 async function send(method) {
-    unlock()
-
-    var ret = await method.send({ from: conf.acc_adr })
-    console.log(ret)
-    return ret
+  var ret = await method.send({ from: conf.acc_adr });
+  console.log(ret);
+  return ret;
 }
 
 async function call(method) {
-    unlock()
-
-    var ret = await method.call({ from: conf.acc_adr })
-    console.log(ret)
-    return ret
+  var ret = await method.call({ from: conf.acc_adr });
+  console.log(ret);
+  return ret;
 }
 
-app.post('/call', (req, res) => {
-    console.log('call')
+app.post("/call", (req, res) => {
+  console.log("call");
+  var json = req.body;
+  sk_model.findOne(
+    { _id: json.id },
+    ["bcId", "contractAddress"],
+    (err, contract) => {
+      if (err) return console.error(err);
+      console.log(contract);
+      initApp(
+        contract.bcId,
+        () => {
+          var c = new web3.eth.Contract(abi, contract.contractAddress);
+          var a = json.params
+            ? call(c.methods[json.method](...json.params))
+            : call(c.methods[json.method]());
+          a.then((r) => res.send(r));
+        },
+        (er) => {
+          res.status(500).send(er);
+        }
+      );
+    }
+  );
+});
 
-    var c = new web3.eth.Contract(abi, conf.contract_address)
-    var json = req.body
-    var a = json.params ? call(c.methods[json.method](...json.params)) : call(c.methods[json.method]())
+app.post("/send", (req, res) => {
+  console.log("app post sent");
+  var json = req.body;
+  console.log(json);
+  sk_model.findOne(
+    { _id: json.id },
+    ["bcId", "contractAddress"],
+    (err, contract) => {
+      if (err) return console.error(err);
+      console.log(contract);
+      initApp(
+        contract.bcId,
+        () => {
+          var c = new web3.eth.Contract(abi, contract.contractAddress);
+          var a = json.params
+            ? send(c.methods[json.method](...json.params))
+            : send(c.methods[json.method]());
+          a.then((r) => res.send(r));
+        },
+        (er) => {
+          res.status(500).send(er);
+        }
+      );
+    }
+  );
+});
 
-    a.then(r => res.send(r))
-})
-app.post('/info', (req, res) => {
-    console.log('info')
+app.post("/deploy", (req, res) => {
+  console.log("app deploy");
+  var json = req.body;
+  console.log(json);
+  initApp(
+    json.bcId,
+    () => {
+      var c = new web3.eth.Contract(abi);
+      var result = c.deploy({ data: bin });
+      result.send({ from: conf.acc_adr, gas: 1500000 }).then((data) => {
+        console.log(`contract address: ${data._address}`);
+        const contract = new sk_model({
+          bcId: json.bcId,
+          contractAddress: data._address,
+        });
+        contract.save(function (err) {
+          if (err) return console.error(err);
+        });
+        console.log(`contract id: ${contract._id}`);
+        res.send(contract);
+      });
+    },
+    (er) => {
+      res.status(500).send({ error: er });
+    }
+  );
+});
 
-    var c = new web3.eth.Contract(abi, conf.contract_address)
-    var json = req.body
-    var a = json.params ? call(c.methods[json.method](...json.params)) : call(c.methods[json.method]())
-
-    a.then(r => res.send(r))
-})
-
-app.post('/send', (req, res) => {
-    var c = new web3.eth.Contract(abi, conf.contract_address)
-    var json = req.body
-    var a = json.params ? send(c.methods[json.method](...json.params)) : send(c.methods[json.method]())
-
-    a.then(r => res.send(r))
-})
-function gen(){
-    let chars = [0,1,2,3,4,5,6,7,8,9,'A','B','C','D','E','F']
-    let res = '0x'
-    for(i=0;i<=40;i++)
-        res += chars[Math.floor(Math.random()*chars.length)]
-    return res
+function testRPC() {
+  let bcId = "EpMyxT6O88sWOZ62aH4ZlXNPbjZemVsg";
+  web3 = new Web3(
+    new Web3.providers.HttpProvider(
+      "http://83.220.168.72:8001/bcm/bc/" + bcId + "/rpc"
+    )
+  );
+  console.log("TEST RPC");
+  web3.eth.getAccounts((er, data) => {
+    console.log(data);
+    web3.eth.getBalance(data[0], (e, d) => {
+      console.log(d);
+    });
+  });
 }
-function deploy() {
-   /* unlock().then(r1 => {
-        // personal.unlockAccount(acc, '');
-        // web3.eth.personal.unlockAccount(acc, '')
-        var c = new web3.eth.Contract(abi)//, null, {from: acc, data: bin})
-        // c.new({from: acc, data: bin})
-        var res = c.deploy({ data: bin })
-        res.send({ from: conf.acc_adr, gas: 1500000 }).then(res => console.log(res._address))
-    })*/
-  const db = require('./db'),
-    contracts = new db();
-  const contract = new db({ bc_http: 'http://localhost:8545', contract_address: gen() });
-  contract.save(function (err, contract) {
+
+function info(_id) {
+  sk_model.find({ _id: _id }, ["bc_http", "contract_address"], function (
+    err,
+    contract
+  ) {
     if (err) return console.error(err);
+    console.log(contract);
   });
-  db.find(function (err, contracts) {
-    if (err) return console.error(err);
-    console.log(contracts);
-  });
-  /*db.deleteMany({ bc_http: 'http://localhost:8545' }, function (err) {
+}
+
+function deleteAll() {
+  sk_model.deleteMany({ bcId: `${host}:8545` }, function (err) {
     if (err) return handleError(err);
-  });*/
+  });
 }
 
-/*function info(_id) {
-  return contract_address, bc_http;
-}*/
+var abi = JSON.parse(
+  fs.readFileSync("./contracts/" + conf.contract_name + ".abi")
+);
+var bin =
+  "0x" +
+  JSON.parse(fs.readFileSync("./contracts/" + conf.contract_name + ".bin"))
+    .object;
 
-var abi = JSON.parse(fs.readFileSync('./contracts/' + conf.contract_name +'.abi'))
-var bin = '0x' + JSON.parse(fs.readFileSync('./contracts/' + conf.contract_name +'.bin')).object
-
-
-
-//deploy(abi, bin)
-
-
-
-//web3.eth.getAccounts().then(r => console.log(r))
-
-app.listen(8866);
-  /*
-axios.post('http://localhost:8866/call', {
-    method: 'retrieve'
-  })
-  .then(function (response) {
-    console.log(response);
-  })
-  .catch(function (error) {
-    console.log(error);
+const startServer = () => {
+  app.listen(port, () => {
+    console.log(
+      `Service has been started, using port: ${port}\nDatabase: ${db}`
+    );
   });
+};
 
-axios.post('http://localhost:6666/send', {
-    method: 'store',
-    params: [10]
-  })
-  .then(function (response) {
-    console.log(response);
-  })
-  .catch(function (error) {
-    console.log(error);
-  });
-  */
-deploy();
+connectDb()
+  .on("error", console.log)
+  .on("disconnected", connectDb)
+  .once("open", startServer);
