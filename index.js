@@ -55,7 +55,7 @@ function checkBalance() {
   });
 }
 
-async function initApp(bcId, callback, err_callback = () => {}) {
+async function initApp(bcId, callback, err_callback = () => { }) {
   web3 = new Web3(
     new Web3.providers.HttpProvider(
       "http://83.220.168.72:8001/bcm/bc/" + bcId + "/rpc"
